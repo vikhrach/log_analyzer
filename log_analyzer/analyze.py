@@ -6,8 +6,9 @@ import re
 config = {"REPORT_SIZE": 1000, "REPORT_DIR": "./reports", "LOG_DIR": "./log"}
 
 
-def extract_date_from_filename(filename: str) -> datetime.datetime | None:
-    pattern = r"nginx-access-ui\.log-(\d{8})\.*"
+def extract_date_from_filename(
+    filename: str, pattern=r"nginx-access-ui\.log-(\d{8})\.*"
+) -> datetime.datetime | None:
     match = re.search(pattern, filename)
     if match:
         return datetime.datetime.strptime(match.group(1), "%Y%m%d")
@@ -43,8 +44,8 @@ def get_request_time_generator(file_path: str):
             yield (match.group("url"), match.group("request_time"))
 
 
-def collect_data(generator) -> tuple[dict[str,list[float]], int, float]:
-    raw_data:dict[str,list[float]] = {}
+def collect_data(generator) -> tuple[dict[str, list[float]], int, float]:
+    raw_data: dict[str, list[float]] = {}
     general_count = 0
     general_time = 0.0
     for url, request_time in generator:
@@ -56,7 +57,6 @@ def collect_data(generator) -> tuple[dict[str,list[float]], int, float]:
 
 
 def get_statistics(data, all_count, all_time):
-
     statistics = {}
     for k, v in data.items():
         count = len(v)
@@ -73,13 +73,10 @@ def get_statistics(data, all_count, all_time):
     return statistics
 
 
-try:
-    log_file = search_latest_logfile(str(config["LOG_DIR"]))
-    request_time_generator = get_request_time_generator(log_file)
-    raw_data = collect_data(request_time_generator)
-    analyzed_data = get_statistics(*raw_data)
-except FileExistsError as err:
-    structlog
+log_file = search_latest_logfile(str(config["LOG_DIR"]))
+request_time_generator = get_request_time_generator(log_file)
+raw_data = collect_data(request_time_generator)
+analyzed_data = get_statistics(*raw_data)
 print(log_file)
 # print(extract_date_from_filename(log_file))
 print(analyzed_data)
