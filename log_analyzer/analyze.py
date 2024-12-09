@@ -2,35 +2,38 @@ import datetime
 import gzip
 import os
 import re
+import structlog
+import json
+from string import Template
 
-config = {"REPORT_SIZE": 1000, "REPORT_DIR": "./reports", "LOG_DIR": "./log"}
-
-
-def extract_date_from_filename(
-    filename: str, pattern=r"nginx-access-ui\.log-(\d{8})\.*"
-) -> datetime.datetime | None:
+def extract_date_from_filename(filename: str, pattern:str) -> datetime.datetime | None:
+    '''Extract date from filename using pattern'''
     match = re.search(pattern, filename)
     if match:
         return datetime.datetime.strptime(match.group(1), "%Y%m%d")
     else:
-        return None  # If no match is found
+        return None 
 
 
-def search_latest_logfile(log_dir: str) -> str:
-    maxdate = datetime.datetime.fromtimestamp(0)
+def search_latest_logfile(log_dir: str, pattern:str) -> str:
+    '''Get latest logfile for analyzing'''
+    max_date = datetime.datetime.fromtimestamp(0)
+    path_with_maxdate = ""
     for i in os.listdir(log_dir):
-        curpath = os.path.join(log_dir, i)
-        curdate = extract_date_from_filename(curpath)
-        if not curdate:
+        current_log_path = os.path.join(log_dir, i)
+        current_parsed_date = extract_date_from_filename(current_log_path, pattern)
+        if not current_parsed_date:
             break
-        if curdate > maxdate:
-            maxdate = curdate
-            maxpath = curpath
-    return maxpath
+        if current_parsed_date > max_date:
+            max_date = current_parsed_date
+            path_with_maxdate = current_log_path
+    if not path_with_maxdate:
+        raise RuntimeError("Log files not parsed")
+    return path_with_maxdate, max_date
 
 
 def get_request_time_generator(file_path: str):
-    # Check if the file is a GZIP file
+    '''Read and parse line in logfile'''
     with (
         gzip.open(file_path, "rt")
         if file_path.endswith(".gz")
@@ -45,6 +48,7 @@ def get_request_time_generator(file_path: str):
 
 
 def collect_data(generator) -> tuple[dict[str, list[float]], int, float]:
+    '''Aggregate all data from logfile'''
     raw_data: dict[str, list[float]] = {}
     general_count = 0
     general_time = 0.0
@@ -56,12 +60,14 @@ def collect_data(generator) -> tuple[dict[str, list[float]], int, float]:
     return (raw_data, general_count, general_time)
 
 
-def get_statistics(data, all_count, all_time):
-    statistics = {}
+def get_statistics(config, data, all_count, all_time):
+    '''Calculate statistics'''
+    statistics = []
     for k, v in data.items():
         count = len(v)
         time_sum_per_url = sum(v)
-        statistics[k] = {
+        statistics.append({
+            "url":k,
             "count": count,
             "count_perc": count / all_count,
             "time_sum": time_sum_per_url,
@@ -69,14 +75,25 @@ def get_statistics(data, all_count, all_time):
             "time_avg": time_sum_per_url / count,
             "time_max": max(v),
             "time_min": min(v),
-        }
+        })
+    statistics = sorted(statistics, key = lambda x:x["time_sum"],reverse=True)[:int(config["REPORT_SIZE"])]
     return statistics
 
+def create_report_with_template(config, report_data, latest_date:datetime.datetime ):
+    report_file = config["REPORT_TEMPLATE_PATH"]
+    with open(report_file, "r") as f:
+        report_template = Template(f.read())
+    print(json.dumps(report_data,ensure_ascii=False))
+    with open(f"{config["REPORT_DIR"]}/report-{latest_date.strftime("%Y-%m-%d")}.html", "w") as f:
+        f.write(report_template.safe_substitute(table_json = json.dumps(report_data,ensure_ascii=False)))
 
-log_file = search_latest_logfile(str(config["LOG_DIR"]))
-request_time_generator = get_request_time_generator(log_file)
-raw_data = collect_data(request_time_generator)
-analyzed_data = get_statistics(*raw_data)
-print(log_file)
-# print(extract_date_from_filename(log_file))
-print(analyzed_data)
+def analyze_log(config):
+    '''Analyze logs with given configuration'''
+    log_file, latest_date = search_latest_logfile(str(config["LOG_DIR"]),str(config["FILE_PATTERN"]))
+    request_time_generator = get_request_time_generator(log_file)
+    raw_data = collect_data(request_time_generator)
+    report_data = get_statistics(config, *raw_data)
+    create_report_with_template(config, report_data, latest_date)
+    return
+
+
