@@ -7,7 +7,7 @@ import json
 from string import Template
 
 def merge_configs(config_priority, config):
-    """ Merge two configuration dictionaries"""
+    """ Merge two configuration dictionaries1"""
     merged_config = config.copy() 
     merged_config.update(config_priority)
     return merged_config

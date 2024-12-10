@@ -28,7 +28,7 @@ def read_config(config_path):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Script to use a configuration file in JSON format")
-    parser.add_argument('--config', required=True, help="Path to the config JSON file")
+    parser.add_argument('--config', required=False, help="Path to the config JSON file")
 
     # Parse arguments
     args = parser.parse_args()
