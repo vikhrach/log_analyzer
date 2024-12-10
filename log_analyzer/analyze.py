@@ -6,6 +6,12 @@ import structlog
 import json
 from string import Template
 
+def merge_configs(config_priority, config):
+    """ Merge two configuration dictionaries"""
+    merged_config = config.copy() 
+    merged_config.update(config_priority)
+    return merged_config
+
 def extract_date_from_filename(filename: str, pattern:str) -> datetime.datetime | None:
     '''Extract date from filename using pattern'''
     match = re.search(pattern, filename)
