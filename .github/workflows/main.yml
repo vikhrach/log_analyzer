@@ -15,7 +15,7 @@ jobs:
       - name: Run image
         uses: abatilo/actions-poetry@v2.0.0
         with:
-          poetry-version: "l.8.4"
+          poetry-version: 1.8.4
       - name: Install dependencies
         run: poetry install
       - name: Run linter flake8
