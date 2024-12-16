@@ -10,6 +10,20 @@ import structlog
 log = structlog.get_logger()
 
 
+def read_config(config_path):
+    if not os.path.exists(config_path):
+        print(f"Config file does not exist: {config_path}")
+        return {}
+    try:
+        with open(config_path, "r") as file:
+            config_data = json.load(
+                file,
+            )
+        return config_data
+    except json.JSONDecodeError:
+        (f"Error decoding JSON in the config file: {config_path}")
+
+
 def merge_configs(config_priority, config):
     """Merge two configuration dictionaries"""
     merged_config = config.copy()
@@ -26,7 +40,7 @@ def extract_date_from_filename(filename: str, pattern: str) -> datetime.datetime
         return None
 
 
-def search_latest_logfile(log_dir: str, pattern: str) -> str:
+def search_latest_logfile(log_dir: str, pattern: str) -> tuple[str, datetime.datetime]:
     """Get latest logfile for analyzing"""
     log.info(f"searching latest logfile in {log_dir}")
     max_date = datetime.datetime.fromtimestamp(0)
@@ -105,7 +119,7 @@ def create_report_with_template(config, report_data, latest_date: datetime.datet
 
 def analyze_log(config):
     """Analyze logs with given configuration"""
-    log_file, latest_date = search_latest_logfile(str(config["LOG_DIR"]), str(config["FILE_PATTERN"]))
+    log_file, latest_date = search_latest_logfile(str(config["LOG_DIR"]), r"nginx-access-ui\.log-(\d{8})\.[gz|txt]")
     request_time_generator = get_request_time_generator(log_file)
     raw_data = collect_data(request_time_generator)
     report_data = get_statistics(config, *raw_data)
