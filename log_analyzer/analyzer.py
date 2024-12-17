@@ -16,9 +16,7 @@ def read_config(config_path):
         return {}
     try:
         with open(config_path, "r") as file:
-            config_data = json.load(
-                file,
-            )
+            config_data = json.load(file)
         return config_data
     except json.JSONDecodeError:
         (f"Error decoding JSON in the config file: {config_path}")
@@ -49,7 +47,7 @@ def search_latest_logfile(log_dir: str, pattern: str) -> tuple[str, datetime.dat
         current_log_path = os.path.join(log_dir, i)
         current_parsed_date = extract_date_from_filename(current_log_path, pattern)
         if not current_parsed_date:
-            break
+            continue
         if current_parsed_date > max_date:
             max_date = current_parsed_date
             path_with_maxdate = current_log_path
