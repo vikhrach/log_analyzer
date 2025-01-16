@@ -52,20 +52,24 @@ def search_latest_logfile(log_dir: str, pattern: str) -> tuple[str, datetime.dat
             max_date = current_parsed_date
             path_with_maxdate = current_log_path
     if not path_with_maxdate:
-        raise RuntimeError("Log files not parsed")
+        raise IOError("Log files with given pattern not found")
     return path_with_maxdate, max_date
 
 
 def get_request_time_generator(file_path: str):
     """Read and parse line in logfile"""
     log.info("logfile parsing")
-    with gzip.open(file_path, "rt") if file_path.endswith(".gz") else open(file_path, "r") as file:
-        for line in file:
-            pattern = r"(?P<url>(?<= )(/\S*)).*(?P<request_time>\d+\.\d+)$"
-            match = re.search(pattern, line)
-            if not match:
-                continue
-            yield (match.group("url"), match.group("request_time"))
+    try:
+        opener = gzip.open(file_path, "rt") if file_path.endswith(".gz") else open(file_path, "r")
+        with opener as file:
+            for line in file:
+                pattern = r"(?P<url>(?<= )(/\S*)).*(?P<request_time>\d+\.\d+)$"
+                match = re.search(pattern, line)
+                if not match:
+                    continue
+                yield (match.group("url"), match.group("request_time"))
+    except OSError:
+        log.exception("Could not open/read file:", file_path)
 
 
 def collect_data(generator) -> tuple[dict[str, list[float]], int, float]:
@@ -110,14 +114,21 @@ def create_report_with_template(config, report_data, latest_date: datetime.datet
     log.info(f"generating report in {report_dir}")
     with open(report_file, "r") as f:
         report_template = Template(f.read())
-    print(json.dumps(report_data, ensure_ascii=False))
     with open(f"{report_dir}/report-{latest_date.strftime('%Y-%m-%d')}.html", "w") as f:
         f.write(report_template.safe_substitute(table_json=json.dumps(report_data, ensure_ascii=False)))
+
+
+def check_report_with_given_date(config, date):
+    report_dir = config["REPORT_DIR"]
+    return os.path.isfile(f"{report_dir}/report-{date.strftime('%Y-%m-%d')}.html")
 
 
 def analyze_log(config):
     """Analyze logs with given configuration"""
     log_file, latest_date = search_latest_logfile(str(config["LOG_DIR"]), r"nginx-access-ui\.log-(\d{8})\.[gz|txt]")
+    if check_report_with_given_date(config, latest_date):
+        log.info("Report with given date already exist")
+        return
     request_time_generator = get_request_time_generator(log_file)
     raw_data = collect_data(request_time_generator)
     report_data = get_statistics(config, *raw_data)
